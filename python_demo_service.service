@@ -1,0 +1,15 @@
+# place this file in ~/.config/systemd/user/ or /etc/systemd/system/
+
+[Unit]
+# Human readable name of the unit
+Description=Python Demo Service
+
+[Service]
+# Command to execute when the service is started
+ExecStart=/usr/bin/python /home/tim/.config/systemd/user/python_demo_service.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+Type=notify
+
+[Install]
+WantedBy=default.target
