@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ansible-community/schemas/main/f/ansible.json#/$defs/playbook
+---
+- name: Install rpi display service
+  become: true
+  hosts: target
+  vars:
+    target_dir: /usr/libexec/rpi-display-tim
+  tasks:
+    - name: "Rpi display: cleanup"
+      ansible.builtin.file:
+        dest: "{{ target_dir }}"
+        state: absent
+
+    - name: "Rpi display: Create directory for files"
+      ansible.builtin.file:
+        dest: "{{ target_dir }}"
+        state: directory
+        mode: 0755
+        owner: root
+        group: root
+
+    - name: "Rpi display: install dependencies"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - python3-smbus
+        - python3-pil
+        - python3-rpi.gpio
+        - python3-systemd
+
+    - name: "Rpi display: install executable files"
+      ansible.builtin.copy:
+        src: "../{{ item }}"
+        dest: "{{ target_dir }}"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+      with_items:
+        - config.py
+        - display_service.py
+        - Font.ttf
+        - SH1106.py
+
+    - name: "Rpi display: install service"
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/rpi-display-tim.service
+        mode: "755"
+        owner: root
+        group: root
+        content: |
+          [Unit]
+          # Human readable name of the unit
+          Description=Raspberry pi display service
+
+          [Service]
+          # Command to execute when the service is started
+          ExecStart=/usr/bin/python3 {{ target_dir }}/display_service.py
+          Environment=PYTHONUNBUFFERED=1
+          Restart=on-failure
+          Type=notify
+
+          [Install]
+          WantedBy=default.target
+
+    - name: "Rpi display: enable service"
+      ansible.builtin.systemd:
+        name: rpi-display-tim
+        enabled: true
+        state: started
+
+...

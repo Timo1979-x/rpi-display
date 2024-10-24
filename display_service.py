@@ -1,16 +1,18 @@
 import SH1106
 import time, random
-# import config
-# import traceback
-
-
+import RPi.GPIO as GPIO
 from PIL import Image,ImageDraw,ImageFont
+import os
+import systemd.daemon
 
-FAN_ON_TEMPERATURE = 60
-FAN_OFF_TEMPERATURE = 55
+#region constants
+FAN_ON_TEMPERATURE = 72
+FAN_OFF_TEMPERATURE = 65
 USE_EXT_DISPLAY = True
 FONT_SIZE = 12
 FONT_SPACING = round(FONT_SIZE * 0.85)
+COOLER_PIN = 15
+#endregion
 
 disp = None
 font = None
@@ -86,20 +88,29 @@ def display_ext_display(cpu_usage, temperature, fan_on):
   draw.text((0 + offsetX, FONT_SPACING * 1 + offsetY), f"temp: {temperature:.1f} C", font = font, fill = 0)
   draw.text((0 + offsetX, FONT_SPACING * 2 + offsetY), f"Fan {fan}", font = font, fill = 0)
 
-  # image1=image1.rotate(180) 
+  image1=image1.rotate(180) 
   disp.ShowImage(disp.getbuffer(image1))
 
+def start_fan_stdout():
+  print("========> Fan started")
+
+def stop_fan_stdout():
+  print("========> Fan stopped")
+
+def start_fan_gpio():
+  GPIO.output(COOLER_PIN, GPIO.HIGH)
+
+def stop_fan_gpio():
+  GPIO.output(COOLER_PIN, GPIO.LOW)
+
 display = display_ext_display if USE_EXT_DISPLAY else display_stdout
+stop_fan = stop_fan_gpio if USE_EXT_DISPLAY else stop_fan_stdout
+start_fan = start_fan_gpio if USE_EXT_DISPLAY else start_fan_stdout
 
 def read_temperature():
   with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
     return int(f.read()) / 1000
 
-def start_fan():
-  print("========> Fan started")
-
-def stop_fan():
-  print("========> Fan stopped")
 
 def init():
   if not USE_EXT_DISPLAY:
@@ -112,15 +123,18 @@ def init():
   disp.Init()
   # Clear display.
   disp.clear()
-  fontFile = "Font.ttf"
+  fontFile = os.path.dirname(os.path.realpath(__file__)) + "/Font.ttf"
   # fontFile = "AnkaCoder-C75-r.ttf"
   # fontFile = "AnkaCoder-C87-r.ttf"
   font = ImageFont.truetype(fontFile, FONT_SIZE)
+  GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
+  GPIO.setup(COOLER_PIN, GPIO.OUT, initial = GPIO.LOW)   # Set pin to be an output pin and set initial value to low (off)
 
 if __name__ == "__main__":
   init()
   previous_times = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   fan_on = False
+  systemd.daemon.notify('READY=1')
   while True:
     time.sleep(1)  # Wait for 1 second
     # Get initial CPU times``
